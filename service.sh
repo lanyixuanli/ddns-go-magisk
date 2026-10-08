@@ -169,14 +169,10 @@ watchdog() {
             sleep 30
             continue
         fi
-        if [ ! -f "${PID_FILE}" ]; then
-            echo "$(date '+%Y-%m-%d %H:%M:%S'): PID 文件不存在，重启 ddns-go" >> "${WATCHDOG_LOG}"
-        else
-            PID=$(cat "${PID_FILE}")
-            if [ -z "${PID}" ] || ! ( [ "${PID}" -eq "${PID}" ] 2>/dev/null && ps -p "${PID}" >/dev/null 2>&1 ); then
-                echo "$(date '+%Y-%m-%d %H:%M:%S'): ddns-go 进程已停止，尝试重启" >> "${WATCHDOG_LOG}"
-                start_ddns
-            fi
+        # 用 pgrep 直接检查 ddns-go 进程是否存在，不依赖 PID 文件（避免 ddns-go 自己重启后 PID 变化导致误判）
+        if ! pgrep -f "bin/ddns-go" >/dev/null 2>&1; then
+            echo "$(date '+%Y-%m-%d %H:%M:%S'): ddns-go 进程未运行，尝试重启" >> "${WATCHDOG_LOG}"
+            start_ddns
         fi
         sleep "${WD_INTERVAL}"
     done

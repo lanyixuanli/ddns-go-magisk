@@ -113,3 +113,12 @@ ddns-go-magisk/
 ### 卸载后有残留文件
 1. 等 30 秒，看门狗会自动检测模块消失并清理残留
 2. 手动删除 `/data/adb/ddns_go_module` 和 `/data/local/tmp/ddns-*` 即可
+
+## 作者
+
+蓝逸轩
+
+- 酷安：[https://www.coolapk.com/u/1034657](https://www.coolapk.com/u/1034657)
+- 微博：[https://weibo.com/u/5249612129](https://weibo.com/u/5249612129)
+- 个人网站：[https://www.12xf.cn](https://www.12xf.cn)
+- 个人网站：[https://www.lyx6.com](https://www.lyx6.com)
