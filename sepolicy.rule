@@ -1,0 +1,17 @@
+# ============================================================
+# sepolicy.rule
+# KSU / APatch / FolkPatch 开机自动加载；Magisk 由 service.sh 用 magiskpolicy --live 动态注入
+# ============================================================
+
+# ---- APatch WebUI（apatchd）与浏览器/前端通信 ----
+allow webroot apatchd unix_stream_socket connectto;
+allow webroot apatchd fifo { read write };
+allow webroot self socket { read write };
+
+# ---- 允许 WebUI app（untrusted_app）经 ksu/apatch exec 后访问运行时文件 ----
+# /data/local/tmp 下的 ddns-go.log / ddns-watchdog.log / ddns-go.pid
+allow untrusted_app shell_data_file file { read write open create append unlink };
+allow untrusted_app shell_data_file dir { read write search add_name remove_name };
+
+# ---- 允许 ddns-go 绑定 9876 端口、对外连接 ----
+allow untrusted_app self tcp_socket { name_bind listen create };

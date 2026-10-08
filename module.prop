@@ -1,0 +1,11 @@
+id=ddns-go-Module
+name=ddns-go模块
+version=v1.0.0
+versionCode=1
+author=蓝逸轩
+# ======== Web访问模式说明 ========
+# 当前：内网设备可访问Web面板，地址: http://手机内网IP:9876
+# 切换仅本机访问：修改service.sh，启用选项B，注释选项A，重新打包刷入模块
+# =================================
+description=蓝逸轩用于ddns-go的Magisk模块。网站管理后台: http://本机IP:9876 (内网可访问)
+webui=webroot

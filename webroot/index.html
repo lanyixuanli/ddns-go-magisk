@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DDNS-GO 模块状态</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#121212; --card:#222; --log:#111; --text:#eee; --text-dim:#aaa;
+  --border:#2c2c2c; --input-bg:#333;
+}
+html[data-theme="light"]{
+  --bg:#f0f2f5; --card:#fff; --log:#f5f5f5; --text:#222; --text-dim:#666;
+  --border:#e0e0e0; --input-bg:#eee;
+}
+body{background:var(--bg);color:var(--text);padding:16px;font-family:system-ui;transition:background .2s}
+.wrap{max-width:600px;margin:0 auto}
+h1{margin-bottom:16px;font-size:22px}
+.topbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.theme-btn{background:#333;color:#fff;border:none;border-radius:6px;padding:8px 14px;font-size:13px;cursor:pointer}
+html[data-theme="light"] .theme-btn{background:#e0e0e0;color:#222}
+.btn{padding:12px 8px;border:none;border-radius:8px;font-size:14px;cursor:pointer;color:#fff;text-align:center;width:100%}
+.row{display:grid;gap:8px;margin-bottom:8px}
+.row-2{grid-template-columns:1fr 1fr}
+.row-3{grid-template-columns:1fr 1fr 1fr}
+.btn-blue{background:#2185f5}
+.btn-green{background:#28a745}
+.btn-orange{background:#ff9800}
+.btn-red{background:#dc3545}
+.btn-gray{background:#555555}
+.group-title{font-size:12px;color:var(--text-dim);margin:14px 0 6px 0;padding-left:2px}
+.card{background:var(--card);padding:14px;border-radius:10px;margin:12px 0}
+.log-block{background:var(--card);padding:14px;border-radius:10px;margin:12px 0}
+.log-block h3{margin:0 0 8px 0;font-size:15px;font-weight:normal;color:var(--text-dim)}
+.log-content{background:var(--log);padding:12px;border-radius:6px;min-height:60px;max-height:320px;overflow-y:auto;color:var(--text);font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-all}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px;vertical-align:middle}
+.dot-green{background:#4cd964}
+.dot-red{background:#ff5555}
+.dot-gray{background:#777}
+.status-red{color:#ff5555}
+.status-green{color:#4cd964}
+.status-gray{color:#999}
+html[data-theme="light"] .status-green{color:#1a7f37}
+html[data-theme="light"] .status-red{color:#d73a49}
+html[data-theme="light"] .status-gray{color:#888}
+.info-line{display:flex;justify-content:space-between;align-items:center;padding:3px 0;line-height:1.6}
+.info-label{color:var(--text-dim)}
+.info-val{text-align:right}
+.ip-row{padding:6px 0;border-bottom:1px solid var(--border)}
+.ip-row:last-child{border-bottom:none}
+.ip-row .ip-head{font-size:13px;margin-bottom:2px}
+.ip-row a{color:#4aa3ff;text-decoration:none;font-family:monospace;font-size:12px;word-break:break-all;display:block;line-height:1.4}
+html[data-theme="light"] .ip-row a{color:#0969da}
+.ip-iface{color:var(--text-dim);font-size:12px;margin-right:8px}
+input{background:var(--input-bg)!important;color:var(--text)!important}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="topbar">
+  <h1 style="margin:0">DDNS-GO 模块状态</h1>
+  <select id="themeSel" onchange="onThemeChange(this.value)" style="background:var(--input-bg);color:var(--text);border:none;border-radius:6px;padding:8px 10px;font-size:13px;cursor:pointer">
+    <option value="dark">🌙 深色模式</option>
+    <option value="light">☀️ 浅色模式</option>
+    <option value="auto">📱 跟随系统</option>
+  </select>
+</div>
+
+<div class="group-title">操作</div>
+<div class="row row-2">
+  <button class="btn btn-blue" onclick="refresh()">刷新状态</button>
+  <button class="btn btn-blue" onclick="restartDdns()">重启 DDNS-GO</button>
+</div>
+<div class="row row-2">
+  <button id="btnPower" class="btn btn-orange" onclick="togglePower()">关闭 DDNS-GO</button>
+  <button class="btn btn-red" onclick="clearAllLog()">清空日志</button>
+</div>
+<div class="row">
+  <button class="btn btn-green" onclick="openDdnsPanel()">打开 ddns-go 后台管理页</button>
+</div>
+
+<div class="group-title">开关设置（点一下切换）</div>
+<div class="row row-3">
+  <button id="btnWatchdog" class="btn btn-green" onclick="toggleWatchdog()">看门狗保活</button>
+  <button id="btnAutostart" class="btn btn-green" onclick="toggleAutostart()">开机自启 DDNS-GO</button>
+  <button id="btnArchive" class="btn btn-gray" onclick="toggleArchive()">日志归档</button>
+</div>
+
+<div class="card">
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="flex:1">看门狗检测间隔：当前 <span id="intervalText">--</span> 秒</span>
+    <input id="intervalInput" type="number" min="5" max="300" placeholder="秒数" style="width:90px;padding:8px;border-radius:6px;border:none;background:#333;color:#fff;font-size:14px">
+    <button class="btn btn-blue" style="width:auto;padding:8px 16px" onclick="saveInterval()">保存</button>
+  </div>
+  <div style="font-size:12px;color:#888;margin-top:6px">范围 5~300 秒，默认 30 秒；改完下次看门狗循环自动生效</div>
+  <div style="border-top:1px solid #2c2c2c;margin:10px 0"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="flex:1">ddns-go 监听端口：当前 <span id="portText">--</span></span>
+    <input id="portInput" type="number" min="1024" max="65535" placeholder="端口号" style="width:100px;padding:8px;border-radius:6px;border:none;background:#333;color:#fff;font-size:14px">
+    <button class="btn btn-blue" style="width:auto;padding:8px 16px" onclick="savePort()">保存并重启</button>
+  </div>
+  <div style="font-size:12px;color:#888;margin-top:6px">范围 1024~65535，默认 9876；改完自动重启 ddns-go 生效</div>
+  <div style="border-top:1px solid #2c2c2c;margin:10px 0"></div>
+  <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+    <span style="flex:1">监听地址：<span id="listenModeText">--</span></span>
+    <button class="btn btn-blue" style="width:auto;padding:8px 16px" onclick="toggleListenMode()">切换监听模式</button>
+  </div>
+  <div style="font-size:12px;color:#888;margin-top:6px">内网模式=0.0.0.0（局域网可访问）；仅本机=127.0.0.1（只能手机自己访问）；切换后自动重启生效</div>
+</div>
+
+<div class="card">
+  <div class="info-line"><span class="info-label">工作目录</span><span class="info-val" style="font-family:monospace;font-size:12px;color:#888">/data/adb/ddns_go_module</span></div>
+  <div class="info-line"><span class="info-label">PID 文件</span><span class="info-val" id="pidFile">--</span></div>
+  <div class="info-line"><span class="info-label">进程状态</span><span class="info-val" id="procStatus">--</span></div>
+  <div class="info-line"><span class="info-label">运行时长</span><span class="info-val" id="uptime">--</span></div>
+  <div class="info-line"><span class="info-label">监听模式</span><span class="info-val" id="listenMode">--</span></div>
+  <div class="info-line"><span class="info-label">ddns 日志</span><span class="info-val" id="ddnsLogStatus">--</span></div>
+  <div class="info-line"><span class="info-label">看门狗日志</span><span class="info-val" id="wdLogStatus">--</span></div>
+  <div class="info-line"><span class="info-label">看门狗保活</span><span class="info-val" id="watchdogStatus">--</span></div>
+  <div class="info-line"><span class="info-label">开机自启 DDNS-GO</span><span class="info-val" id="autostartStatus">--</span></div>
+  <div class="info-line"><span class="info-label">日志归档</span><span class="info-val" id="archiveStatus">--</span></div>
+</div>
+
+<div class="card">
+  <div style="font-size:13px;color:#aaa;margin-bottom:8px">本机访问地址（点链接直接打开）</div>
+  <div id="ipList">获取中...</div>
+</div>
+
+<div class="log-block">
+  <h3>ddns-go.log（尾部 50 行）</h3>
+  <div id="ddnsLog" class="log-content">暂无日志</div>
+</div>
+<div class="log-block">
+  <h3>ddns-watchdog.log（尾部 50 行）</h3>
+  <div id="wdLog" class="log-content">暂无日志</div>
+</div>
+</div>
+
+<script>
+// ===== 主题切换：深色 / 浅色 / 跟随系统 =====
+function applyTheme(t){
+  if(t === "auto"){
+    const sysLight = window.matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.setAttribute("data-theme", sysLight ? "light" : "dark");
+  } else {
+    document.documentElement.setAttribute("data-theme", t);
+  }
+  localStorage.setItem("ddns_theme", t);
+  document.getElementById("themeSel").value = t;
+}
+function onThemeChange(t){
+  applyTheme(t);
+}
+// 启动时恢复
+applyTheme(localStorage.getItem("ddns_theme") || "dark");
+
+// ===== 运行时长秒表 =====
+let uptimeSeconds = 0;
+let uptimeStr = "";
+function parseUptime(s){
+  if(!s) return 0;
+  // 格式: "DD-HH:MM:SS" 或 "MM:SS" 或 "HH:MM:SS"
+  let days=0, rest=s;
+  if(s.includes("-")){
+    [days, rest] = s.split("-");
+    days = parseInt(days)||0;
+  }
+  const parts = rest.split(":").map(x=>parseInt(x)||0);
+  let h=0,m=0,sec=0;
+  if(parts.length===3){[h,m,sec]=parts;}
+  else if(parts.length===2){[m,sec]=parts;}
+  return days*86400 + h*3600 + m*60 + sec;
+}
+function formatUptime(t){
+  const d = Math.floor(t/86400); t%=86400;
+  const h = Math.floor(t/3600); t%=3600;
+  const m = Math.floor(t/60); const s = t%60;
+  const pad = n => String(n).padStart(2,"0");
+  return d>0 ? `${d}-${pad(h)}:${pad(m)}:${pad(s)}` : `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+function updateUptimeDisplay(){
+  const el = document.getElementById("uptime");
+  if(uptimeSeconds === 0 && !uptimeStr){
+    el.innerHTML = '<span class="status-gray">--</span>';
+  } else {
+    el.innerHTML = `<span style="color:var(--text)">${formatUptime(uptimeSeconds)}</span>`;
+  }
+}
+// 每秒走一下
+setInterval(()=>{
+  if(uptimeSeconds > 0 || uptimeStr){ uptimeSeconds++; updateUptimeDisplay(); }
+}, 1000);
+
+const PID_FILE="/data/local/tmp/ddns-go.pid";
+const LOG_FILE="/data/local/tmp/ddns-go.log";
+const WD_LOG_FILE="/data/local/tmp/ddns-watchdog.log";
+const ARCHIVE_SWITCH="/data/adb/ddns_go_module/enable_log_archive";
+const WATCHDOG_SWITCH="/data/adb/ddns_go_module/watchdog_enabled";
+const WATCHDOG_INTERVAL_FILE="/data/adb/ddns_go_module/watchdog_interval";
+const LISTEN_MODE_FILE="/data/adb/ddns_go_module/listen_mode";
+const AUTOSTART_FILE="/data/adb/ddns_go_module/autostart";
+const PORT_FILE="/data/adb/ddns_go_module/listen_port";
+const WORK_DIR="/data/adb/ddns_go_module";
+const DDNS_BIN="test -x /system/bin/ddns-go && echo /system/bin/ddns-go || echo /data/adb/modules/ddns-go-Module/system/bin/ddns-go";
+
+let procRunning = false;
+let currentPort = 9876;  // 当前监听端口，刷新时从文件读
+
+const exec = async (cmd) => {
+  let raw;
+  try{
+    if (window.ksu) raw = await window.ksu.exec(cmd);
+    else if (window.apatch) raw = await window.apatch.exec(cmd);
+    else return {stdout:"", stderr:"不支持的WebUI环境", code:1};
+  }catch(e){
+    return {stdout:"", stderr:String(e), code:1};
+  }
+  if (typeof raw === 'string') return {stdout: raw, stderr:"", code:0};
+  return {stdout: raw.stdout || "", stderr: raw.stderr || "", code: (typeof raw.code === 'number') ? raw.code : 0};
+};
+
+const isAlive = async (pid) => {
+  const r = await exec(`kill -0 ${pid} 2>/dev/null && echo ALIVE || echo DEAD`);
+  return r.stdout.trim() === "ALIVE";
+};
+
+const fileState = async (path) => {
+  const r = await exec(`[ -f "${path}" ] && ( [ -s "${path}" ] && echo EXISTS || echo EMPTY ) || echo MISSING`);
+  const v = r.stdout.trim();
+  if (v === "EXISTS") return "exists";
+  if (v === "EMPTY") return "empty";
+  return "missing";
+};
+
+// 状态行渲染助手：dot + 文字
+function setStatus(el, dotColor, text){
+  el.innerHTML = `<span class="dot dot-${dotColor}"></span>${text}`;
+}
+
+async function refresh(){
+  // ---- 读端口 ----
+  const pRes = await exec(`cat ${PORT_FILE} 2>/dev/null`);
+  let p = pRes.stdout.trim();
+  if(!p || isNaN(p) || p < 1024 || p > 65535) p = 9876;
+  currentPort = p;
+  document.getElementById("portText").innerText = p;
+
+  // ---- 归档开关 ----
+  let arcRes = await exec(`cat ${ARCHIVE_SWITCH} 2>/dev/null`);
+  let arcVal = arcRes.stdout.trim();
+  const btnArc = document.getElementById("btnArchive");
+  const arcEl = document.getElementById("archiveStatus");
+  if (arcVal === "1") {
+    setStatus(arcEl, "green", "开启");
+    btnArc.className = "btn btn-green";
+  } else {
+    setStatus(arcEl, "gray", "关闭");
+    btnArc.className = "btn btn-gray";
+  }
+
+  // ---- 看门狗保活 ----
+  let wdRes = await exec(`cat ${WATCHDOG_SWITCH} 2>/dev/null`);
+  let wdVal = wdRes.stdout.trim();
+  const btnWd = document.getElementById("btnWatchdog");
+  const wdEl = document.getElementById("watchdogStatus");
+  if (wdVal === "0") {
+    setStatus(wdEl, "red", "关闭");
+    btnWd.className = "btn btn-gray";
+  } else {
+    setStatus(wdEl, "green", "开启");
+    btnWd.className = "btn btn-green";
+  }
+
+  // ---- 开机自启 ----
+  let asRes = await exec(`cat ${AUTOSTART_FILE} 2>/dev/null`);
+  let asVal = asRes.stdout.trim();
+  const btnAs = document.getElementById("btnAutostart");
+  const asEl = document.getElementById("autostartStatus");
+  if (asVal === "0") {
+    setStatus(asEl, "red", "关闭");
+    btnAs.className = "btn btn-gray";
+  } else {
+    setStatus(asEl, "green", "开启");
+    btnAs.className = "btn btn-green";
+  }
+
+  // ---- PID / 进程 / uptime / 监听模式 ----
+  let pidRes = await exec(`cat ${PID_FILE} 2>/dev/null`);
+  let pid = pidRes.stdout.trim();
+  const pidEl = document.getElementById("pidFile");
+  const procEl = document.getElementById("procStatus");
+  const uptimeEl = document.getElementById("uptime");
+  const listenEl = document.getElementById("listenMode");
+  const btnPower = document.getElementById("btnPower");
+
+  if (!pid) {
+    procRunning = false;
+    setStatus(pidEl, "red", "不存在");
+    setStatus(procEl, "red", "未启动");
+    uptimeSeconds = 0; uptimeStr = "";
+    uptimeEl.innerHTML = '<span class="status-gray">--</span>';
+    listenEl.innerHTML = '<span class="status-gray">--</span>';
+    btnPower.className = "btn btn-green";
+    btnPower.innerText = "开启 DDNS-GO";
+  } else {
+    if (await isAlive(pid)) {
+      procRunning = true;
+      setStatus(pidEl, "green", "PID=" + pid);
+      setStatus(procEl, "green", "运行中");
+      // uptime - 解析成秒数，前端自己每秒走动像钟表
+      const up = await exec(`ps -p ${pid} -o etime= 2>/dev/null`);
+      const newStr = up.stdout.trim();
+      const newSec = parseUptime(newStr);
+      // 差值小于 5 秒就用前端自己走的（更平滑），否则用系统值校准
+      if(Math.abs(newSec - uptimeSeconds) < 5){
+        // 保持前端当前值
+      } else {
+        uptimeSeconds = newSec;
+      }
+      uptimeStr = newStr;
+      updateUptimeDisplay();
+      // 监听模式：优先用 ss，回退 netstat，匹配 LOCAL_ADDRESS 列
+      let ls = await exec(`ss -tln 2>/dev/null | grep ':${currentPort}' | head -1`);
+      if(!ls.stdout.trim()){
+        ls = await exec(`netstat -tln 2>/dev/null | grep ':${currentPort}' | head -1`);
+      }
+      const out = ls.stdout;
+      if(out.includes("0.0.0.0:" + currentPort) || out.includes("*:" + currentPort) || out.includes(":::" + currentPort)){
+        setStatus(listenEl, "green", `0.0.0.0:${currentPort}（内网可访问）`);
+      } else if(out.includes("127.0.0.1:" + currentPort) || out.includes("[::1]:" + currentPort)){
+        setStatus(listenEl, "gray", `127.0.0.1:${currentPort}（仅本机）`);
+      } else {
+        listenEl.innerHTML = '<span class="status-gray">未监听</span>';
+      }
+      btnPower.className = "btn btn-orange";
+      btnPower.innerText = "关闭 DDNS-GO";
+    } else {
+      procRunning = false;
+      setStatus(pidEl, "gray", "PID=" + pid + "（已死）");
+      setStatus(procEl, "red", "进程已死亡");
+      uptimeSeconds = 0; uptimeStr = "";
+    uptimeEl.innerHTML = '<span class="status-gray">--</span>';
+      listenEl.innerHTML = '<span class="status-gray">--</span>';
+      btnPower.className = "btn btn-green";
+      btnPower.innerText = "开启 DDNS-GO";
+    }
+  }
+
+  // ---- ddns-go.log ----
+  const ddnsState = await fileState(LOG_FILE);
+  const ddnsStateEl = document.getElementById("ddnsLogStatus");
+  const ddnsLogEl = document.getElementById("ddnsLog");
+  if (ddnsState === "missing") {
+    setStatus(ddnsStateEl, "red", "不存在");
+    ddnsLogEl.innerText = "暂无日志";
+  } else if (ddnsState === "empty") {
+    setStatus(ddnsStateEl, "gray", "空文件");
+    ddnsLogEl.innerText = "暂无日志";
+  } else {
+    setStatus(ddnsStateEl, "green", "存在");
+    const logRes = await exec(`tail -n 50 ${LOG_FILE} 2>/dev/null`);
+    ddnsLogEl.innerText = logRes.stdout || "暂无日志";
+  }
+
+  // ---- watchdog.log ----
+  const wdState = await fileState(WD_LOG_FILE);
+  const wdStateEl = document.getElementById("wdLogStatus");
+  const wdLogEl = document.getElementById("wdLog");
+  if (wdState === "missing") {
+    setStatus(wdStateEl, "red", "不存在");
+    wdLogEl.innerText = "暂无日志";
+  } else if (wdState === "empty") {
+    setStatus(wdStateEl, "gray", "空文件");
+    wdLogEl.innerText = "暂无日志";
+  } else {
+    setStatus(wdStateEl, "green", "存在");
+    const wdLogRes = await exec(`tail -n 50 ${WD_LOG_FILE} 2>/dev/null`);
+    wdLogEl.innerText = wdLogRes.stdout || "暂无日志";
+  }
+
+  loadInterval();
+  loadListenMode();
+  loadIpList();
+}
+
+// 获取本机 IPv4 + IPv6 global 地址
+async function loadIpList(){
+  const el = document.getElementById("ipList");
+  const out = [];
+  // IPv4：排除 lo
+  const v4 = await exec(`ip -o -4 addr show 2>/dev/null | awk '$2!="lo" {split($4,a,"/"); print $2":"a[1]}'`);
+  // IPv6 global：排除 lo 和 link-local (fe80)
+  const v6 = await exec(`ip -o -6 addr show scope global 2>/dev/null | awk '$2!="lo" {split($4,a,"/"); print $2":"a[1]}'`);
+  const lines = (v4.stdout.trim() + "\n" + v6.stdout.trim()).split("\n").filter(x=>x.trim());
+  if(lines.length === 0){
+    el.innerHTML = '<div style="color:#888;font-size:13px">未获取到地址</div>';
+    return;
+  }
+  el.innerHTML = lines.map(line => {
+    // IPv6 地址本身带冒号，只能按第一个冒号拆
+    const idx = line.indexOf(":");
+    const iface = line.substring(0, idx);
+    let ip = line.substring(idx+1);
+    const isV6 = ip.includes(":");
+    const link = isV6 ? `http://[${ip}]:${currentPort}` : `http://${ip}:${currentPort}`;
+    return `<div class="ip-row"><div class="ip-head"><span class="ip-iface">${iface}</span>${isV6?"IPv6":"IPv4"}</div><a href="${link}" target="_blank">${link}</a></div>`;
+  }).join("");
+}
+
+async function togglePower(){
+  if (procRunning) {
+    await exec(`pkill -f "bin/ddns-go" 2>/dev/null; sleep 1; rm -f ${PID_FILE}`);
+    const wdRet = await exec(`cat ${WATCHDOG_SWITCH} 2>/dev/null`);
+    if (wdRet.stdout.trim() !== "0") {
+      if (confirm("看门狗当前是开启状态，约几十秒内会自动把 ddns-go 拉起来。\n\n是否同时关闭看门狗？")) {
+        await exec(`echo 0 > ${WATCHDOG_SWITCH}`);
+      }
+    }
+    setTimeout(refresh, 1500);
+  } else {
+    await exec(`pkill -f "bin/ddns-go" 2>/dev/null; sleep 0.5; BIN=$(${DDNS_BIN}); chmod 755 "$BIN" 2>/dev/null; nohup "$BIN" -l "0.0.0.0:${currentPort}" -c "${WORK_DIR}/config.yaml" >> ${LOG_FILE} 2>&1 & echo $! > ${PID_FILE}`);
+    setTimeout(refresh, 1500);
+  }
+}
+
+async function restartDdns(){
+  await exec(`pkill -f "bin/ddns-go" 2>/dev/null; sleep 1; rm -f ${PID_FILE}`);
+  await new Promise(r => setTimeout(r, 500));
+  await exec(`BIN=$(${DDNS_BIN}); chmod 755 "$BIN" 2>/dev/null; nohup "$BIN" -l "0.0.0.0:${currentPort}" -c "${WORK_DIR}/config.yaml" >> ${LOG_FILE} 2>&1 & echo $! > ${PID_FILE}`);
+  setTimeout(refresh, 1500);
+}
+
+async function clearAllLog(){
+  await exec(`> ${LOG_FILE}; > ${WD_LOG_FILE}`);
+  refresh();
+}
+
+async function toggleArchive(){
+  let arcRes = await exec(`cat ${ARCHIVE_SWITCH} 2>/dev/null`);
+  let val = (arcRes.stdout.trim() === "1") ? "0" : "1";
+  await exec(`echo ${val} > ${ARCHIVE_SWITCH}`);
+  refresh();
+}
+
+async function toggleWatchdog(){
+  let wdRes = await exec(`cat ${WATCHDOG_SWITCH} 2>/dev/null`);
+  let val = (wdRes.stdout.trim() === "0") ? "1" : "0";
+  await exec(`echo ${val} > ${WATCHDOG_SWITCH}`);
+  refresh();
+}
+
+async function toggleAutostart(){
+  let asRes = await exec(`cat ${AUTOSTART_FILE} 2>/dev/null`);
+  let val = (asRes.stdout.trim() === "0") ? "1" : "0";
+  await exec(`echo ${val} > ${AUTOSTART_FILE}`);
+  refresh();
+}
+
+async function loadInterval(){
+  let r = await exec(`cat ${WATCHDOG_INTERVAL_FILE} 2>/dev/null`);
+  let v = r.stdout.trim();
+  if(!v || isNaN(v)) v = "30";
+  document.getElementById("intervalText").innerText = v;
+  document.getElementById("intervalInput").value = "";
+}
+
+async function saveInterval(){
+  let v = parseInt(document.getElementById("intervalInput").value);
+  if(isNaN(v)){ alert("请输入数字"); return; }
+  if(v < 5) v = 5;
+  if(v > 300) v = 300;
+  await exec(`echo ${v} > ${WATCHDOG_INTERVAL_FILE}`);
+  loadInterval();
+}
+
+async function loadListenMode(){
+  const r = await exec(`cat ${LISTEN_MODE_FILE} 2>/dev/null`);
+  const m = r.stdout.trim();
+  document.getElementById("listenModeText").innerText = (m === "local") ? "127.0.0.1（仅本机）" : "0.0.0.0（内网可访问）";
+}
+
+async function toggleListenMode(){
+  const r = await exec(`cat ${LISTEN_MODE_FILE} 2>/dev/null`);
+  const cur = r.stdout.trim();
+  const next = (cur === "local") ? "lan" : "local";
+  await exec(`echo ${next} > ${LISTEN_MODE_FILE}`);
+  // 自动重启 ddns-go 生效
+  await exec(`pkill -f "bin/ddns-go" 2>/dev/null; sleep 1; rm -f ${PID_FILE}`);
+  await new Promise(r => setTimeout(r, 500));
+  const addr = (next === "local") ? "127.0.0.1" : "0.0.0.0";
+  await exec(`BIN=$(${DDNS_BIN}); chmod 755 "$BIN" 2>/dev/null; nohup "$BIN" -l "${addr}:${currentPort}" -c "${WORK_DIR}/config.yaml" >> ${LOG_FILE} 2>&1 & echo $! > ${PID_FILE}`);
+  setTimeout(refresh, 1500);
+}
+
+async function openDdnsPanel(){
+  await exec(`am start --user 0 -a android.intent.action.VIEW -d http://127.0.0.1:${currentPort} >/dev/null 2>&1`);
+}
+
+async function savePort(){
+  let v = parseInt(document.getElementById("portInput").value);
+  if(isNaN(v)){ alert("请输入端口号"); return; }
+  if(v < 1024) v = 1024;
+  if(v > 65535) v = 65535;
+  if(v === currentPort){ alert("端口未变化"); return; }
+  await exec(`echo ${v} > ${PORT_FILE}`);
+  // 自动重启 ddns-go 生效
+  await exec(`pkill -f "bin/ddns-go" 2>/dev/null; sleep 1; rm -f ${PID_FILE}`);
+  await new Promise(r => setTimeout(r, 500));
+  await exec(`BIN=$(${DDNS_BIN}); chmod 755 "$BIN" 2>/dev/null; nohup "$BIN" -l "0.0.0.0:${v}" -c "${WORK_DIR}/config.yaml" >> ${LOG_FILE} 2>&1 & echo $! > ${PID_FILE}`);
+  setTimeout(refresh, 1500);
+}
+
+refresh();
+// 每 5 秒整页刷新一次校准状态，运行时长由前端秒表每秒自己走
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>
